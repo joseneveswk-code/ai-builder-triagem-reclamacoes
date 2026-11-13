@@ -1,0 +1,401 @@
+{
+  "name": "AI Builder - Triagem Inteligente de Reclamações",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6cda79e8-3fc2-4ee6-881b-f30ab0353081",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "CONFIGURE_YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "CONFIGURE_YOUR_SHEET",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c727d79c-f22b-4038-b4d0-0b2dbb3cff75",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "7a446c48-3695-44a5-b3f8-96999523c2af",
+              "leftValue": "={{ $json.categoria_ia }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "bdd6cfd4-2995-46e2-a891-3176d43cec50",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "maxItems": 60
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ],
+      "id": "617fb69c-2369-4e42-a5fa-916c4f3c8003",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview",
+          "cachedResultName": "Gemini 3 Flash Preview",
+          "cachedResultUrl": ""
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Você é um assistente de triagem de reclamações de um marketplace de delivery. Este é um projeto educacional com dados totalmente fictícios.\n\nAnalise a reclamação abaixo:\nID: {{ $json.id }}\nTexto: {{ $json.texto }}\n\nClassifique a reclamação em exatamente uma destas categorias:\n- item_faltando\n- qualidade_danificado\n- reembolso_suporte\n- cobranca_preco\n- atraso_entrega\n- falta_contato_suporte\n\nClassifique a gravidade como baixa, media ou alta. Use alta para situações com possível risco à saúde ou segurança. Nesses casos, precisa_escalar deve ser sim.\n\nIdentifique uma causa provável, deixando claro quando for apenas hipótese.\n\nCrie uma resposta sugerida ao cliente com até 80 palavras, em português brasileiro, com empatia e linguagem profissional. Não prometa reembolso, compensação ou solução garantida. Não solicite dados pessoais ou sensíveis. Para situações de risco, recomende atendimento humano prioritário e, quando houver sintomas graves, busca imediata por atendimento de emergência.\n\nResponda SOMENTE com um objeto JSON válido, sem markdown e sem texto adicional, usando exatamente estas chaves:\n{\n  \"categoria_ia\": \"categoria escolhida\",\n  \"gravidade_ia\": \"baixa, media ou alta\",\n  \"causa_provavel\": \"descrição breve\",\n  \"resposta_sugerida\": \"resposta ao cliente\",\n  \"precisa_escalar\": \"sim ou nao\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "135046c0-a69e-4227-82e0-67d3145f9a03",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst respostas = $input.all();\nconst originais = $('Limit').all();\n\nconst categorias = [\n  'item_faltando',\n  'qualidade_danificado',\n  'reembolso_suporte',\n  'cobranca_preco',\n  'atraso_entrega',\n  'falta_contato_suporte'\n];\n\nconst resultados = [];\n\nfor (let i = 0; i < respostas.length; i++) {\n  const original = originais[i]?.json;\n\n  if (!original?.id) {\n    throw new Error(`ID original ausente no item ${i + 1}`);\n  }\n\n  let texto = respostas[i].json.content?.parts?.[0]?.text;\n\n  if (!texto) {\n    throw new Error(`Gemini não retornou texto para ${original.id}`);\n  }\n\n  texto = texto.trim()\n    .replace(/^```(?:json)?\\s*/i, '')\n    .replace(/\\s*```$/, '');\n\n  let dados;\n\n  try {\n    dados = JSON.parse(texto);\n  } catch (erro) {\n    throw new Error(`JSON inválido para ${original.id}: ${erro.message}`);\n  }\n\n  if (!categorias.includes(dados.categoria_ia)) {\n    throw new Error(`Categoria inválida para ${original.id}`);\n  }\n\n  if (!['baixa', 'media', 'alta'].includes(dados.gravidade_ia)) {\n    throw new Error(`Gravidade inválida para ${original.id}`);\n  }\n\n  if (!['sim', 'nao'].includes(dados.precisa_escalar)) {\n    throw new Error(`Escalonamento inválido para ${original.id}`);\n  }\n\n  if (dados.gravidade_ia === 'alta') {\n    dados.precisa_escalar = 'sim';\n  }\n\n  for (const campo of ['causa_provavel', 'resposta_sugerida']) {\n    if (typeof dados[campo] !== 'string' || !dados[campo].trim()) {\n      throw new Error(`Campo ${campo} inválido para ${original.id}`);\n    }\n  }\n\n  if (dados.resposta_sugerida.trim().split(/\\s+/).length > 80) {\n    throw new Error(`Resposta acima de 80 palavras para ${original.id}`);\n  }\n\n  resultados.push({\n    json: {\n      id: original.id,\n      row_number: original.row_number,\n      categoria_ia: dados.categoria_ia,\n      gravidade_ia: dados.gravidade_ia,\n      causa_provavel: dados.causa_provavel,\n      resposta_sugerida: dados.resposta_sugerida,\n      precisa_escalar: dados.precisa_escalar\n    }\n  });\n}\n\nreturn resultados;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        0
+      ],
+      "id": "615f3690-351d-4c6a-ba58-2d7cc1c11054",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "CONFIGURE_YOUR_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "CONFIGURE_YOUR_SHEET",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "categoria_ia": "={{ $json.categoria_ia }}",
+            "gravidade_ia": "={{ $json.gravidade_ia }}",
+            "causa_provavel": "={{ $json.causa_provavel }}",
+            "resposta_sugerida": "={{ $json.resposta_sugerida }}",
+            "precisa_escalar": "={{ $json.precisa_escalar }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "data",
+              "displayName": "data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "categoria_ia",
+              "displayName": "categoria_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gravidade_ia",
+              "displayName": "gravidade_ia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "causa_provavel",
+              "displayName": "causa_provavel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resposta_sugerida",
+              "displayName": "resposta_sugerida",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "precisa_escalar",
+              "displayName": "precisa_escalar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1712,
+        0
+      ],
+      "id": "8fb95a4c-192f-4ef9-9cd5-6c800d312e7f",
+      "name": "Update row in sheet"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        896,
+        0
+      ],
+      "id": "bfd607e0-ba90-4932-b305-b6b8a0f12218",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1936,
+        0
+      ],
+      "id": "8a468315-00c9-46f0-9bac-3b037d90eeb2",
+      "name": "Wait"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
