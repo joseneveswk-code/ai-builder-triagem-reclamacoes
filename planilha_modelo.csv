@@ -1,0 +1,4 @@
+id,data,canal,texto,categoria_ia,gravidade_ia,causa_provavel,resposta_sugerida,precisa_escalar
+TESTE-001,2026-11-14,app,Minha bebida não veio no pedido.,,,,,
+TESTE-002,2026-11-14,chat,A entrega está atrasada há uma hora.,,,,,
+TESTE-003,2026-11-14,app,O recipiente chegou rachado e vazou comida.,,,,,
