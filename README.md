@@ -26,7 +26,7 @@ As categorias do modelo e do gabarito têm nomenclaturas diferentes; a comparaç
 - Dados totalmente fictícios; não há integração com atendimento real.
 - Respostas simulam ações operacionais; não representam ações efetivamente executadas.
 - O modelo atingiu uma cota gratuita de requisições, interrompendo o processamento ampliado.
-- O código atual recupera dados originais por índice do nó `Limit` durante um loop; essa associação deve ser revisada antes de qualquer uso em produção.
+- O código foi revisado para usar o vínculo de itens do n8n (`itemMatching`) entre a resposta do Gemini e o registro de entrada. A alteração **ainda precisa ser validada em uma execução real no n8n**; se o nó Gemini não preservar o vínculo, a execução falhará de forma explícita, evitando uma associação silenciosamente incorreta.
 - O fluxo não deve ser considerado pronto para produção.
 
 ## Como reproduzir
@@ -34,8 +34,19 @@ As categorias do modelo e do gabarito têm nomenclaturas diferentes; a comparaç
 1. Importe `workflow_n8n.json` no n8n.
 2. Configure suas próprias credenciais Google Sheets e Gemini.
 3. Selecione sua própria planilha e aba, com as colunas esperadas pelo fluxo.
-4. Revise a lógica de associação de registros antes de executar em lote.
-5. Execute manualmente com poucos registros fictícios e verifique a atualização da planilha.
+4. Confira se a planilha contém as colunas `id`, `data`, `canal`, `texto`, `categoria_ia`, `gravidade_ia`, `causa_provavel`, `resposta_sugerida` e `precisa_escalar`. Use IDs únicos e deixe `categoria_ia` vazia nos registros pendentes.
+5. Teste primeiro com **um único registro fictício** e confira se o ID e a linha atualizada correspondem à reclamação original.
+6. Repita com dois ou três registros fictícios de categorias diferentes e verifique o histórico de execução, os resultados do Gemini e a atualização correta das linhas.
+7. Caso o nó `Code in JavaScript` indique falha de item linking, interrompa o teste e revise o vínculo do nó Gemini antes de continuar. Não execute lotes maiores sem essa validação.
+
+**Exemplo mínimo para testar (valores fictícios):**
+
+| id | data | canal | texto | categoria_ia | gravidade_ia | causa_provavel | resposta_sugerida | precisa_escalar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TESTE-001 | 2026-11-14 | app | Minha bebida não veio no pedido. | | | | | |
+| TESTE-002 | 2026-11-14 | app | A entrega está atrasada há uma hora. | | | | | |
+
+A execução do workflow real depende de credenciais próprias e da disponibilidade/cota do modelo configurado. O JSON publicado não contém credenciais.
 
 Não inclua tokens, segredos ou dados pessoais no repositório.
 
