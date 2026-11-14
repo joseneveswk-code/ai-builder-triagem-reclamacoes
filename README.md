@@ -41,4 +41,10 @@ Não inclua tokens, segredos ou dados pessoais no repositório.
 
 ## Demonstração
 
-A página `index.html` apresenta os resultados de forma estática, sem consumir a API Gemini. Pode ser publicada pelo GitHub Pages.
+A página `index.html` oferece uma **demonstração interativa sem instalação**: o visitante seleciona um dos sete casos fictícios e clica em **Executar demonstração**. O site exibe os resultados previamente registrados; **não há inferência nova, chamada ao Gemini, envio de mensagens ou escalonamento real**. A página é hospedada no GitHub Pages.
+
+### Arquitetura para um ambiente de produção real
+
+A experiência equivalente com **IA real em tempo de execução** exigiria uma aplicação com backend seguro, autenticação, controle de acesso e cotas, integração com o modelo de IA via servidor, validação de saídas, observabilidade, proteção de dados e revisão humana de casos sensíveis. As chaves de API não poderiam ser expostas no JavaScript do navegador. O escalonamento e o envio de respostas precisariam de integrações operacionais efetivas e confirmação de execução.
+
+**Essa arquitetura é uma evolução proposta, não uma funcionalidade já implementada neste projeto.**
